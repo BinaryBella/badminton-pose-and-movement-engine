@@ -69,8 +69,13 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
   }
 
   const file     = fileInput.files[0];
+  const matchId  = document.getElementById('matchId').value.trim() || 'match_001';
+  const playerId = document.getElementById('playerId').value.trim() || 'player_01';
+
   const formData = new FormData();
   formData.append('file', file);
+  formData.append('match_id', matchId);
+  formData.append('player_id', playerId);
 
   // Reset results panels
   ['dashboard', 'movementDashboard', 'exports', 'videoPlayerSection'].forEach(id => {

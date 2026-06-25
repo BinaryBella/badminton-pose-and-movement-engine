@@ -111,7 +111,8 @@ def _classify_step(jump_px, speed, accel):
 # ── Main entry point ───────────────────────────────────────────────────────────
 
 def extract_movement_features(input_json_path, output_json_path, output_csv_path,
-                               output_video_path=None, original_video_path=None):
+                               output_video_path=None, original_video_path=None,
+                               match_id="match_001", player_id="player_01"):
     with open(input_json_path, 'r') as f:
         data = json.load(f)
 
@@ -435,6 +436,8 @@ def extract_movement_features(input_json_path, output_json_path, output_csv_path
 
     # ── Save metrics JSON (includes frame_entries) ────────────────────────────
     output_doc = {
+        'match_id':           match_id,
+        'player_id':          player_id,
         'frames':             frame_entries,
         'aggregated_metrics': aggregated_metrics,
     }

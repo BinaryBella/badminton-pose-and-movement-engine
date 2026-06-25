@@ -44,6 +44,17 @@
                 <span class="file-name" id="fileNameDisplay">No file selected</span>
               </div>
 
+              <div class="form-row" style="display: flex; gap: 16px; margin: 20px 24px 0;">
+                <div class="form-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                  <label for="matchId" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #6b7280; letter-spacing: 0.05em;">Match ID</label>
+                  <input type="text" id="matchId" value="match_001" placeholder="e.g. match_001" style="padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 0.85rem; outline: none; background: #f9fafb; color: #000; transition: border-color 0.2s;" onfocus="this.style.borderColor='#00334F'" onblur="this.style.borderColor='#e5e7eb'">
+                </div>
+                <div class="form-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                  <label for="playerId" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #6b7280; letter-spacing: 0.05em;">Player ID</label>
+                  <input type="text" id="playerId" value="player_01" placeholder="e.g. player_01" style="padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 0.85rem; outline: none; background: #f9fafb; color: #000; transition: border-color 0.2s;" onfocus="this.style.borderColor='#00334F'" onblur="this.style.borderColor='#e5e7eb'">
+                </div>
+              </div>
+
               <button type="submit" id="submitBtn" class="btn-primary">
                 <span id="submitBtnText">Analyse Video</span>
               </button>

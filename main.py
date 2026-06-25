@@ -1,7 +1,7 @@
 import os
 import shutil
 import uuid
-from fastapi import FastAPI, UploadFile, File, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, BackgroundTasks, Form
 from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 import asyncio
 from fastapi.staticfiles import StaticFiles
@@ -30,7 +30,7 @@ async def read_index():
 POSE_DETECTION_MODEL_PATH = "yolov8n-pose.pt" # Replace with your actual local model path later
 CUSTOM_CLASSIFICATION_MODEL_PATH = "best.pt"  # Fine-tuned model
 
-def process_video_task(task_id, video_path, mp4_path, json_path, csv_path):
+def process_video_task(task_id, video_path, mp4_path, json_path, csv_path, match_id="match_001", player_id="player_01"):
     def progress_cb(current, total):
         pct = int((current / total) * 100) if total > 0 else 0
         progress_store[task_id] = {"status": "processing", "progress": pct}
@@ -55,7 +55,9 @@ def process_video_task(task_id, video_path, mp4_path, json_path, csv_path):
             output_json_path=movement_json_path,
             output_csv_path=movement_csv_path,
             output_video_path=None,
-            original_video_path=None
+            original_video_path=None,
+            match_id=match_id,
+            player_id=player_id
         )
 
         progress_store[task_id]["progress"] = 90
@@ -72,7 +74,7 @@ def process_video_task(task_id, video_path, mp4_path, json_path, csv_path):
             "metrics": metrics,
             "movement_metrics": movement_metrics,
             "exports": {
-                "json_url": "/api/download/output.json",
+                "json_url": "/api/download/movement_metrics.json",
                 "csv_url": "/api/download/output.csv",
                 "mp4_url": "/api/download/output.mp4",
                 "movement_csv_url": "/api/download/movement_features.csv",
@@ -84,7 +86,12 @@ def process_video_task(task_id, video_path, mp4_path, json_path, csv_path):
         progress_store[task_id] = {"status": "failed", "error": str(e)}
 
 @app.post("/api/process-video")
-async def process_video(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+async def process_video(
+    background_tasks: BackgroundTasks, 
+    file: UploadFile = File(...),
+    match_id: str = Form("match_001"),
+    player_id: str = Form("player_01")
+):
     video_path = f"temp_exports/{file.filename}"
     with open(video_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
@@ -96,7 +103,7 @@ async def process_video(background_tasks: BackgroundTasks, file: UploadFile = Fi
     csv_path = os.path.join(TEMP_DIR, "output.csv")
     mp4_path = os.path.join(TEMP_DIR, "output.mp4")
     
-    background_tasks.add_task(process_video_task, task_id, video_path, mp4_path, json_path, csv_path)
+    background_tasks.add_task(process_video_task, task_id, video_path, mp4_path, json_path, csv_path, match_id, player_id)
     
     return {"task_id": task_id}
 
