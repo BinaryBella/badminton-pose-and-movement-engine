@@ -1,5 +1,6 @@
 
 
+const API_ROOT = "";
 /* ── Element refs ────────────────────────────────────────────────────────── */
 const fileInput       = document.getElementById('videoFile');
 const uploadArea      = document.getElementById('uploadArea');
@@ -94,7 +95,7 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
   setStatus('working', 'Uploading video…');
 
   try {
-    const response = await fetch('/api/process-video', { method: 'POST', body: formData });
+    const response = await fetch(`${API_ROOT}/api/process-video`, { method: 'POST', body: formData });
 
     if (!response.ok) {
       const err = await response.json();
@@ -106,7 +107,7 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
     progressStatus.textContent = 'Running pose detection…';
 
     // ── SSE (Server-Sent Events) ──────────────────────────────────────────
-    const eventSource = new EventSource(`/api/progress-stream/${task_id}`);
+    const eventSource = new EventSource(`${API_ROOT}/api/progress-stream/${task_id}`);
 
     eventSource.onmessage = (event) => {
         const data = JSON.parse(event.data);

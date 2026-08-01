@@ -1,16 +1,28 @@
-import cv2
-import json
+"""
+Module 1 — player detection & locked-target tracking.
+
+This is Hirusha's own IoU/histogram tracker, independent of Module 2's
+DeepSort-based tracker (roadmap finding 0.2 — the two are separate tracking
+approaches and neither replaces the other). Content moved verbatim out of
+the original api-ready notebook's cells 2 (CONFIG), 4 (tracker helpers),
+and 6 (run_tracking_inference).
+"""
 import csv
+import json
+
+import cv2
 import numpy as np
 from ultralytics import YOLO
 
-# --- CONFIG ---
-CONF_THRES          = 0.35
+# ------------------------------------------------------------------
+# CONFIG (notebook cell 2)
+# ------------------------------------------------------------------
+CONF_THRES = 0.35
 KEYPOINT_CONF_THRES = 0.25
 
-MAX_MISSING_FRAMES  = 40
+MAX_MISSING_FRAMES = 40
 MAX_CENTER_DISTANCE = 200
-MIN_MATCH_SCORE     = 0.25
+MIN_MATCH_SCORE = 0.25
 
 COURT_Y_MIN = 0.28
 COURT_Y_MAX = 0.62
@@ -36,6 +48,10 @@ SKELETON = [
     (1, 3), (2, 4)
 ]
 
+
+# ------------------------------------------------------------------
+# Locked-target tracker helpers (notebook cell 4)
+# ------------------------------------------------------------------
 def compute_iou(boxA, boxB):
     xA = max(boxA[0], boxB[0]);  yA = max(boxA[1], boxB[1])
     xB = min(boxA[2], boxB[2]);  yB = min(boxA[3], boxB[3])
@@ -44,16 +60,20 @@ def compute_iou(boxA, boxB):
     areaB = max(0, boxB[2] - boxB[0]) * max(0, boxB[3] - boxB[1])
     return inter / (areaA + areaB - inter + 1e-6)
 
+
 def bbox_center(box):
     x1, y1, x2, y2 = box
     return np.array([(x1 + x2) / 2, (y1 + y2) / 2])
 
+
 def center_distance(boxA, boxB):
     return np.linalg.norm(bbox_center(boxA) - bbox_center(boxB))
+
 
 def bbox_area(box):
     x1, y1, x2, y2 = box
     return max(0, x2 - x1) * max(0, y2 - y1)
+
 
 def safe_crop(frame, box):
     h, w = frame.shape[:2]
@@ -65,6 +85,7 @@ def safe_crop(frame, box):
         return None
     return frame[y1:y2, x1:x2]
 
+
 def color_histogram(frame, box):
     crop = safe_crop(frame, box)
     if crop is None or crop.size == 0:
@@ -75,10 +96,12 @@ def color_histogram(frame, box):
     cv2.normalize(hist, hist)
     return hist
 
+
 def histogram_similarity(histA, histB):
     if histA is None or histB is None:
         return 0.0
     return max(0.0, min(1.0, cv2.compareHist(histA, histB, cv2.HISTCMP_CORREL)))
+
 
 def motion_score(frame, prev_frame, box):
     if prev_frame is None:
@@ -94,14 +117,17 @@ def motion_score(frame, prev_frame, box):
     moved = np.count_nonzero(gray > 25)
     return moved / (gray.size + 1e-6)
 
+
 def is_inside_court(box, frame_h):
     foot_y = box[3] / frame_h
     return COURT_Y_MIN < foot_y < COURT_Y_MAX
+
 
 def face_visibility_score(kpt_conf):
     score  = sum(2 for i in [0, 1, 2, 3, 4] if kpt_conf[i] > KEYPOINT_CONF_THRES)
     score += sum(1 for i in [5, 6]           if kpt_conf[i] > KEYPOINT_CONF_THRES)
     return score
+
 
 def extract_detections(result, frame):
     detections = []
@@ -124,6 +150,7 @@ def extract_detections(result, frame):
             "hist":          None,
         })
     return detections
+
 
 def select_initial_target(detections, frame, prev_frame, frame_h):
     best_det, best_score = None, -1
@@ -152,6 +179,7 @@ def select_initial_target(detections, frame, prev_frame, frame_h):
             best_score, best_det = score, det
 
     return best_det
+
 
 def match_locked_target(detections, frame, prev_frame, locked_box, locked_hist, frame_h):
     best_det, best_score = None, -1
@@ -186,6 +214,7 @@ def match_locked_target(detections, frame, prev_frame, locked_box, locked_hist, 
 
     return (None, best_score) if best_score < MIN_MATCH_SCORE else (best_det, best_score)
 
+
 def draw_pose(frame, kpts, kpt_conf):
     for p1, p2 in SKELETON:
         if kpt_conf[p1] > KEYPOINT_CONF_THRES and kpt_conf[p2] > KEYPOINT_CONF_THRES:
@@ -197,10 +226,14 @@ def draw_pose(frame, kpts, kpt_conf):
         if kpt_conf[i] > KEYPOINT_CONF_THRES:
             cv2.circle(frame, (int(x), int(y)), 4, (0, 0, 255), -1)
 
+
+# ------------------------------------------------------------------
+# Main inference entry point (notebook cell 6)
+# ------------------------------------------------------------------
 def run_tracking_inference(video_path, out_mp4, out_json, out_csv, model_path="yolov8n-pose.pt", custom_model_path="best.pt", progress_callback=None):
     baseline_model = YOLO(model_path)
     custom_model = YOLO(custom_model_path)
-    
+
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         raise Exception("Cannot open video")
@@ -218,9 +251,9 @@ def run_tracking_inference(video_path, out_mp4, out_json, out_csv, model_path="y
         "frame_height": frame_h,
         "frames": []
     }
-    
+
     csv_rows = []
-    
+
     locked = False
     locked_box = None
     locked_hist = None
@@ -229,7 +262,7 @@ def run_tracking_inference(video_path, out_mp4, out_json, out_csv, model_path="y
     prev_frame = None
     pose_name = "Detecting..."
     shot_conf = 0.0
-    
+
     total_conf = 0.0
     detected_frames = 0
 
@@ -239,7 +272,7 @@ def run_tracking_inference(video_path, out_mp4, out_json, out_csv, model_path="y
             break
 
         timestamp = frame_id / fps
-        
+
         base_result = baseline_model(frame, conf=CONF_THRES, verbose=False)[0]
         detections = extract_detections(base_result, frame)
 
@@ -315,7 +348,7 @@ def run_tracking_inference(video_path, out_mp4, out_json, out_csv, model_path="y
                 "width": float(box[2] - box[0]), "height": float(box[3] - box[1])
             }
             frame_data["detection_confidence"] = float(selected["det_conf"])
-            
+
             total_conf += float(selected["det_conf"])
             detected_frames += 1
 
@@ -330,7 +363,7 @@ def run_tracking_inference(video_path, out_mp4, out_json, out_csv, model_path="y
 
         tracking_json["frames"].append(frame_data)
         prev_frame = frame.copy()
-        
+
         if progress_callback:
             progress_callback(frame_id + 1, total_frames)
 
@@ -338,69 +371,16 @@ def run_tracking_inference(video_path, out_mp4, out_json, out_csv, model_path="y
 
     with open(out_json, "w") as f:
         json.dump(tracking_json, f, indent=4)
-        
+
     with open(out_csv, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["frame", "player_id", "keypoint", "x", "y", "confidence"])
         writer.writerows(csv_rows)
-        
+
     avg_conf = (total_conf / max(detected_frames, 1)) * 100
-    
+
     return {
         "player_tracked": detected_frames > 0,
         "keypoints_detected": 17,
         "average_confidence": round(avg_conf, 2)
     }
-
-def render_pose_video(video_path, out_mp4, json_path):
-    import json
-    import numpy as np
-    
-    with open(json_path, 'r') as f:
-        data = json.load(f)
-    frames_data = {f['frame_id']: f for f in data['frames']}
-
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        raise Exception("Cannot open video")
-
-    frame_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    frame_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    out = cv2.VideoWriter(out_mp4, cv2.VideoWriter_fourcc(*"avc1"), fps, (frame_w, frame_h))
-
-    for frame_id in range(total_frames):
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        fd = frames_data.get(frame_id)
-        if fd and fd.get("player_detected"):
-            status = fd.get("tracking_status", "missing")
-            box_color = (0, 255, 0) if status == "tracked" else (0, 165, 255)
-            bb = fd["bounding_box"]
-            if bb is not None:
-                x1, y1, x2, y2 = int(bb["x1"]), int(bb["y1"]), int(bb["x2"]), int(bb["y2"])
-                cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 3)
-                cv2.putText(frame, f"Target Player | {status}", (x1, max(30, y1 - 30)),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.65, box_color, 2)
-                pose_name = fd.get("shot_classification", "Detecting...")
-                shot_conf = fd.get("shot_confidence", 0.0)
-                cv2.putText(frame, f"Shot: {pose_name} ({shot_conf:.2f})", (x1, max(55, y1 - 8)),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0), 2)
-
-            # Draw pose
-            kpts = np.zeros((17, 2))
-            kpt_conf = np.zeros(17)
-            for kp in fd.get("keypoints", []):
-                idx = kp["id"]
-                kpts[idx] = [kp["x"], kp["y"]]
-                kpt_conf[idx] = kp["confidence"]
-            draw_pose(frame, kpts, kpt_conf)
-
-        out.write(frame)
-
-    cap.release()
-    out.release()
